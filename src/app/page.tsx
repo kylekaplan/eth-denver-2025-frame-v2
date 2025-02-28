@@ -1,5 +1,6 @@
 import { Metadata } from "next";
 import App from "./app";
+import Link from "next/link";
 
 const appUrl = process.env.NEXT_PUBLIC_URL;
 
@@ -34,5 +35,29 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default function Home() {
-  return (<App />);
+  return (
+    <div>
+      <App />
+      <div className="w-[300px] mx-auto py-2 px-2 mt-4">
+        <h2 className="text-xl font-bold mb-4">Available Frames</h2>
+        <ul className="space-y-2">
+          <li>
+            <Link href="/frames/hello" className="text-blue-500 hover:underline">
+              Hello Frame
+            </Link>
+          </li>
+          <li>
+            <Link href="/frames/token" className="text-blue-500 hover:underline">
+              Token Frame
+            </Link>
+          </li>
+          <li>
+            <Link href="/frames/product" className="text-blue-500 hover:underline">
+              Product Frame
+            </Link>
+          </li>
+        </ul>
+      </div>
+    </div>
+  );
 }
