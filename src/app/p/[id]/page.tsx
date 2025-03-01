@@ -191,6 +191,7 @@ export default async function ProductDetailsFrame({
       productDetails.seller = {
         fid: 16216,
         displayName: "Kyle Kaplan",
+        address: attestation?.attester
       };
 
       
