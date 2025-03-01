@@ -52,7 +52,7 @@ export default function Home() {
             </Link>
           </li>
           <li>
-            <Link href="/frames/product" className="text-blue-500 hover:underline">
+            <Link href="/p" className="text-blue-500 hover:underline">
               Product Frame
             </Link>
           </li>

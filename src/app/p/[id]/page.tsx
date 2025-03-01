@@ -1,5 +1,5 @@
 import { Metadata } from "next";
-import ProductDetails from "~/components/ProductDetails";
+import ProductUI from "~/components/ProductUI";
 import { getIpfsHashFromBytes } from "~/utils/ifps";
 import { getBytesFromHex } from "~/utils/ifps";
 
@@ -7,9 +7,9 @@ const appUrl = process.env.NEXT_PUBLIC_URL;
 const ipfsGateway = process.env.NEXT_PUBLIC_IPFS_GATEWAY;
 
 // Function to fetch product data
-async function getProductData() {
+async function getProductData(productId: string) {
   try {
-    const response = await fetch(`${appUrl}/api/product`, {
+    const response = await fetch(`${appUrl}/api/product?id=${productId}`, {
       next: { revalidate: 60 }, // Revalidate every 60 seconds
     });
 
@@ -55,19 +55,54 @@ async function getUserProfile(fid: string) {
   }
 }
 
-export async function generateMetadata({ searchParams }: { searchParams: { ref?: string } }): Promise<Metadata> {
-  const data = await getProductData();
-  const refFid = searchParams?.ref;
-  console.log("refFid", refFid);
+// const frame = {
+//   version: "next",
+//   imageUrl: `${appUrl}/p/opengraph-image`,
+//   // imageUrl: productDetails.images[0],
+//   button: {
+//     title: "View Details",
+//     action: {
+//       type: "launch_frame",
+//       name: "Product Details",
+//       url: `${appUrl}/p/`,
+//       splashImageUrl: `${appUrl}/splash.png`,
+//       splashBackgroundColor: "#f7f7f7",
+//     },
+//   },
+// };
+
+// export const metadata: Metadata = {
+//   title: "Product Details",
+//   description: "View product details from EAS attestations",
+//   openGraph: {
+//     title: "Product Details",
+//     description: "View product details from EAS attestations",
+//   },
+//   other: {
+//     "fc:frame": JSON.stringify(frame),
+//   },
+// };
+
+export async function generateMetadata({ 
+  params,
+  searchParams 
+}: { 
+  params: { id: string },
+  searchParams: { ref?: string } 
+}): Promise<Metadata> {
+  // Need to await params and searchParams for Next.js App Router
+  const resolvedParams = await Promise.resolve(params);
+  const resolvedSearchParams = await Promise.resolve(searchParams);
+  
+  const productId = resolvedParams.id;
+  const refFid = resolvedSearchParams?.ref;
+  
+  console.log("Generating metadata for product ID:", productId);
+  
+  const data = await getProductData(productId);
 
   let ipfsBytesHash = null;
   let productDetails = null;
-  let referrerName = null;
-
-  // Fetch referrer profile if ref parameter exists
-  if (refFid) {
-    referrerName = await getUserProfile(refFid);
-  }
 
   // Extract product details from the attestation data
   if (data.data?.attestations?.length > 0) {
@@ -80,14 +115,6 @@ export async function generateMetadata({ searchParams }: { searchParams: { ref?:
       // fetch the ipfs hash from the ipfs api
       const ipfsResponse = await fetch(`${ipfsGateway}/${recoveredIpfsHash}`);
       productDetails = await ipfsResponse.json();
-      
-      // Add referrer information to product details if available
-      if (referrerName) {
-        productDetails.referrer = {
-          fid: refFid,
-          displayName: referrerName,
-        };
-      }
     } catch (error) {
       console.error("Error parsing product data:", error);
     }
@@ -95,14 +122,13 @@ export async function generateMetadata({ searchParams }: { searchParams: { ref?:
 
   const frame = {
     version: "next",
-    imageUrl: `${appUrl}/frames/product/details/opengraph-image`,
-    // imageUrl: productDetails.images[0],
+    imageUrl: productDetails?.images?.[0] || `${appUrl}/p/opengraph-image`,
     button: {
       title: "View Details",
       action: {
         type: "launch_frame",
         name: "Product Details",
-        url: `${appUrl}/frames/product/details`,
+        url: `${appUrl}/p/${productId}${refFid ? `?ref=${refFid}` : ''}`,
         splashImageUrl: `${appUrl}/splash.png`,
         splashBackgroundColor: "#f7f7f7",
       },
@@ -122,9 +148,24 @@ export async function generateMetadata({ searchParams }: { searchParams: { ref?:
   };
 }
 
-export default async function ProductDetailsFrame({ searchParams }: { searchParams: { ref?: string } }) {
-  const data = await getProductData();
-  const refFid = searchParams?.ref;
+export default async function ProductDetailsFrame({ 
+  searchParams,
+  params
+}: { 
+  searchParams: { ref?: string },
+  params: { id: string }
+}) {
+  // Need to await params and searchParams for Next.js App Router
+  const resolvedParams = await Promise.resolve(params);
+  const resolvedSearchParams = await Promise.resolve(searchParams);
+  
+  const productId = resolvedParams.id;
+  const refFid = resolvedSearchParams?.ref;
+  
+  console.log("Product ID from URL:", productId);
+  console.log("Referrer FID:", refFid);
+
+  const data = await getProductData(productId);
 
   let ipfsBytesHash = null;
   let productDetails = null;
@@ -146,6 +187,12 @@ export default async function ProductDetailsFrame({ searchParams }: { searchPara
       // fetch the ipfs hash from the ipfs api
       const ipfsResponse = await fetch(`${ipfsGateway}/${recoveredIpfsHash}`);
       productDetails = await ipfsResponse.json();
+
+      productDetails.seller = {
+        fid: 16216,
+        displayName: "Kyle Kaplan",
+      };
+
       
       // Add referrer information to product details if available
       if (referrerName) {
@@ -154,8 +201,8 @@ export default async function ProductDetailsFrame({ searchParams }: { searchPara
           displayName: referrerName,
         };
       }
-      productDetails.productId =
-        "0x13fde286c6d1a7508e2e6ca1a9127e0d38d738504cc3216e3e3bb31abf8b71cd";
+      // Use the product ID from URL parameter instead of hardcoded value
+      productDetails.productId = productId;
     } catch (error) {
       console.error("Error parsing product data:", error);
     }
@@ -165,5 +212,5 @@ export default async function ProductDetailsFrame({ searchParams }: { searchPara
     return <div>No product details found</div>;
   }
 
-  return <ProductDetails productDetails={productDetails} />;
+  return <ProductUI productDetails={productDetails} />;
 }

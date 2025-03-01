@@ -1,7 +1,20 @@
 import { NextResponse } from "next/server";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    // Get the product ID from the query parameter
+    const url = new URL(request.url);
+    const productId = url.searchParams.get('id');
+    
+    if (!productId) {
+      return NextResponse.json(
+        { error: "Product ID is required" },
+        { status: 400 }
+      );
+    }
+    
+    console.log("Fetching product data for ID:", productId);
+    
     const response = await fetch("https://base-sepolia.easscan.org/graphql", {
       method: "POST",
       headers: {
@@ -28,7 +41,7 @@ export async function GET() {
                 "AND": [
                   {
                     "refUID": {
-                      "equals": "0x13fde286c6d1a7508e2e6ca1a9127e0d38d738504cc3216e3e3bb31abf8b71cd"
+                      "equals": productId
                     }
                   },
                   {
