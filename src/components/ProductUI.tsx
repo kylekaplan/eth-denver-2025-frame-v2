@@ -80,7 +80,6 @@ export default function ProductUI({
   console.log("isConfirming", isConfirming);
   console.log("isConfirmed", isConfirmed);
 
-
   useEffect(() => {
     const load = async () => {
       const context = await sdk.context;
@@ -143,8 +142,6 @@ export default function ProductUI({
     }
   }, [isSDKLoaded]);
 
-
-
   // Record purchase when transaction is confirmed
   useEffect(() => {
     const recordPurchase = async () => {
@@ -166,8 +163,7 @@ export default function ProductUI({
               txHash: txHash,
               buyerAddress: address,
               referrerFid: productDetails.referrer?.fid,
-              referrerName:
-                productDetails.referrer?.displayName
+              referrerName: productDetails.referrer?.displayName,
             }),
           });
 
@@ -192,11 +188,11 @@ export default function ProductUI({
   const handleSwitchChain = () => {
     switchChain({ chainId: baseSepolia.id });
     setAskToSwitchChain(false);
-  }
+  };
 
-  useEffect(() => {
-    handleSwitchChain();
-  }, []);
+  // useEffect(() => {
+  //   handleSwitchChain();
+  // }, []);
 
   const handleBuy = async () => {
     if (!productDetails.seller.address) {
@@ -204,35 +200,42 @@ export default function ProductUI({
       return;
     }
 
-    if (chainId !== baseSepolia.id) {
-      setAskToSwitchChain(true);
-      return;
-    }
+    // if (chainId !== baseSepolia.id) {
+    //   setAskToSwitchChain(true);
+    //   return;
+    // }
 
     // Convert price to USDC units (6 decimals)
     const priceInUSDC = BigInt(Math.floor(productDetails.price * 1_000_000));
-    
-    // const usdcContractAddress = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
-    const usdcContractAddress =
-      process.env.NEXT_PUBLIC_USDC_ADDRESS ||
-      "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
-    
+
+    let usdcContractAddress;
+
+    if (chainId === baseSepolia.id) {
+      usdcContractAddress =
+        process.env.NEXT_PUBLIC_USDC_ADDRESS ||
+        "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
+    } else {
+      usdcContractAddress = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+    }
+
     // ERC20 transfer function signature: transfer(address,uint256)
     // Function selector: 0xa9059cbb
     const transferFunctionSelector = "0xa9059cbb";
-    
+
     // Encode the recipient address (32 bytes, padded)
-    const paddedAddress = productDetails.seller.address.slice(2).padStart(64, '0');
-    
+    const paddedAddress = productDetails.seller.address
+      .slice(2)
+      .padStart(64, "0");
+
     // Encode the amount (32 bytes, padded)
-    const paddedAmount = priceInUSDC.toString(16).padStart(64, '0');
-    
+    const paddedAmount = priceInUSDC.toString(16).padStart(64, "0");
+
     // Construct the complete data field
     const data = `${transferFunctionSelector}${paddedAddress}${paddedAmount}`;
-    
-    console.log("Sending USDC to:", productDetails.seller.address);
-    console.log("Amount:", priceInUSDC.toString(), "USDC units");
-    
+
+    // console.log("Sending USDC to:", productDetails.seller.address);
+    // console.log("Amount:", priceInUSDC.toString(), "USDC units");
+
     sendTransaction(
       {
         to: usdcContractAddress as `0x${string}`,
@@ -252,7 +255,7 @@ export default function ProductUI({
     navigator.clipboard.writeText(referralLink);
     setCopySuccess(true);
   };
-  
+
   console.log("productDetails", productDetails);
 
   return (
