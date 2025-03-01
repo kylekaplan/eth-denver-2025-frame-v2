@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ClipboardIcon, CheckIcon } from '@heroicons/react/24/outline';
+import { use } from 'react';
 
 type Purchase = {
   id: string;
@@ -14,23 +15,53 @@ type Purchase = {
   referrerName?: string;
 };
 
-export default function PurchasesPage() {
+export default function ProductPurchasesPage({ 
+  params 
+}: { 
+  params: Promise<{ productId: string }> 
+}) {
+  // Unwrap params using React.use()
+  const resolvedParams = use(params);
+  const { productId } = resolvedParams;
+  
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [productName, setProductName] = useState<string>("");
 
   const blockExplorerUrl = process.env.NEXT_PUBLIC_BLOCK_EXPLORER_URL || 'https://etherscan.io';
 
   useEffect(() => {
     async function fetchPurchases() {
       try {
+        // Fetch all purchases
         const response = await fetch('/api/purchases');
         if (!response.ok) {
           throw new Error('Failed to fetch purchases');
         }
         const data = await response.json();
-        setPurchases(data.purchases);
+        
+        // Filter purchases by product ID
+        const filteredPurchases = data.purchases.filter(
+          (purchase: Purchase) => purchase.productId === productId
+        );
+        
+        setPurchases(filteredPurchases);
+        
+        // Try to fetch product details to get the name
+        try {
+          const productResponse = await fetch(`/api/product?id=${productId}`);
+          if (productResponse.ok) {
+            const productData = await productResponse.json();
+            if (productData.data?.attestations?.length > 0) {
+              // This is simplified - you might need to adjust based on your actual data structure
+              setProductName("Product Details");
+            }
+          }
+        } catch (productError) {
+          console.error("Error fetching product details:", productError);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An unknown error occurred');
       } finally {
@@ -38,8 +69,10 @@ export default function PurchasesPage() {
       }
     }
 
-    fetchPurchases();
-  }, []);
+    if (productId) {
+      fetchPurchases();
+    }
+  }, [productId]);
 
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -52,35 +85,20 @@ export default function PurchasesPage() {
     return id.length > 20 ? `${id.substring(0, 10)}...${id.substring(id.length - 10)}` : id;
   };
 
-  // Get unique product IDs for filtering
-  const uniqueProductIds = [...new Set(purchases.map(purchase => purchase.productId))];
-
   return (
     <div className="h-screen container mx-auto px-4 py-8 bg-white">
-      <h1 className="text-3xl font-bold mb-6 text-gray-900">Purchase History</h1>
+      <h1 className="text-3xl font-bold mb-2 text-gray-900">
+        Purchase History
+      </h1>
+      <h2 className="text-xl mb-6 text-gray-700">
+        {productName ? productName : `Product: ${truncateProductId(productId)}`}
+      </h2>
       
       {loading && <p className="text-gray-700">Loading purchases...</p>}
       {error && <p className="text-red-500">Error: {error}</p>}
       
       {!loading && !error && purchases.length === 0 && (
-        <p className="text-gray-700">No purchases recorded yet.</p>
-      )}
-      
-      {!loading && uniqueProductIds.length > 0 && (
-        <div className="mb-6">
-          <h2 className="text-lg font-semibold mb-2 text-gray-800">Filter by Product:</h2>
-          <div className="flex flex-wrap gap-2">
-            {uniqueProductIds.map(productId => (
-              <Link 
-                key={productId}
-                href={`/admin/purchases/${productId}`}
-                className="inline-block px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-sm text-gray-800"
-              >
-                {truncateProductId(productId)}
-              </Link>
-            ))}
-          </div>
-        </div>
+        <p className="text-gray-700">No purchases found for this product.</p>
       )}
       
       {purchases.length > 0 && (
@@ -88,7 +106,6 @@ export default function PurchasesPage() {
           <table className="min-w-full bg-white border border-gray-200">
             <thead>
               <tr className="bg-gray-100">
-                <th className="py-2 px-4 border-b border-gray-200 text-left font-semibold text-gray-800">Product ID</th>
                 <th className="py-2 px-4 border-b border-gray-200 text-left font-semibold text-gray-800">Buyer</th>
                 <th className="py-2 px-4 border-b border-gray-200 text-left font-semibold text-gray-800">Transaction</th>
                 <th className="py-2 px-4 border-b border-gray-200 text-left font-semibold text-gray-800">Date</th>
@@ -98,27 +115,6 @@ export default function PurchasesPage() {
             <tbody>
               {purchases.map((purchase) => (
                 <tr key={purchase.id} className="hover:bg-gray-50">
-                  <td className="py-2 px-4 border-b border-gray-200 text-gray-900">
-                    <div className="flex items-center">
-                      <Link 
-                        href={`/admin/purchases/${purchase.productId}`}
-                        className="mr-2 text-blue-500 hover:underline"
-                      >
-                        {truncateProductId(purchase.productId)}
-                      </Link>
-                      <button 
-                        onClick={() => copyToClipboard(purchase.productId, purchase.id)}
-                        className="text-gray-500 hover:text-blue-500"
-                        title="Copy product ID"
-                      >
-                        {copiedId === purchase.id ? (
-                          <CheckIcon className="h-4 w-4 text-green-500" />
-                        ) : (
-                          <ClipboardIcon className="h-4 w-4" />
-                        )}
-                      </button>
-                    </div>
-                  </td>
                   <td className="py-2 px-4 border-b border-gray-200">
                     <a 
                       href={`${blockExplorerUrl}/address/${purchase.buyerAddress}`}
