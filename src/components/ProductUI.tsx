@@ -5,10 +5,11 @@ import {
   useAccount,
   useChainId,
   useSendTransaction,
+  useSwitchChain,
   useWaitForTransactionReceipt,
 } from "wagmi";
 import Image from "next/image";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { truncateAddress } from "~/lib/truncateAddress";
 import { UserRejectedRequestError } from "viem";
 import sdk, {
@@ -18,6 +19,7 @@ import sdk, {
   type Context,
 } from "@farcaster/frame-sdk";
 import { createStore } from "mipd";
+import { baseSepolia } from "viem/chains";
 
 export type ProductDetails = {
   name: string;
@@ -30,6 +32,7 @@ export type ProductDetails = {
   seller: {
     fid: number;
     displayName: string;
+    address: `0x${string}`;
   };
   referrer?: {
     fid?: number;
@@ -59,6 +62,7 @@ export default function ProductUI({
   const [sendNotificationResult, setSendNotificationResult] = useState("");
   const [copySuccess, setCopySuccess] = useState(false);
   const [txHash, setTxHash] = useState<string | null>(null);
+  const [askToSwitchChain, setAskToSwitchChain] = useState(false);
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const {
@@ -178,12 +182,61 @@ export default function ProductUI({
     recordPurchase();
   }, [isConfirmed, txHash, address, productDetails]);
 
-  const handleBuy = () => {
+  const {
+    switchChain,
+    error: switchChainError,
+    isError: isSwitchChainError,
+    isPending: isSwitchChainPending,
+  } = useSwitchChain();
+
+  const handleSwitchChain = () => {
+    switchChain({ chainId: baseSepolia.id });
+    setAskToSwitchChain(false);
+  }
+
+  useEffect(() => {
+    handleSwitchChain();
+  }, []);
+
+  const handleBuy = async () => {
+    if (!productDetails.seller.address) {
+      console.error("Seller address is missing");
+      return;
+    }
+
+    if (chainId !== baseSepolia.id) {
+      setAskToSwitchChain(true);
+      return;
+    }
+
+    // Convert price to USDC units (6 decimals)
+    const priceInUSDC = BigInt(Math.floor(productDetails.price * 1_000_000));
+    
+    // const usdcContractAddress = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+    const usdcContractAddress =
+      process.env.NEXT_PUBLIC_USDC_ADDRESS ||
+      "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
+    
+    // ERC20 transfer function signature: transfer(address,uint256)
+    // Function selector: 0xa9059cbb
+    const transferFunctionSelector = "0xa9059cbb";
+    
+    // Encode the recipient address (32 bytes, padded)
+    const paddedAddress = productDetails.seller.address.slice(2).padStart(64, '0');
+    
+    // Encode the amount (32 bytes, padded)
+    const paddedAmount = priceInUSDC.toString(16).padStart(64, '0');
+    
+    // Construct the complete data field
+    const data = `${transferFunctionSelector}${paddedAddress}${paddedAmount}`;
+    
+    console.log("Sending USDC to:", productDetails.seller.address);
+    console.log("Amount:", priceInUSDC.toString(), "USDC units");
+    
     sendTransaction(
       {
-        // call yoink() on Yoink contract
-        to: "0x4bBFD120d9f352A0BEd7a014bd67913a2007a878",
-        data: "0x9846cd9efc000023c0",
+        to: usdcContractAddress as `0x${string}`,
+        data: data as `0x${string}`,
       },
       {
         onSuccess: (hash) => {
@@ -263,20 +316,22 @@ export default function ProductUI({
                   {productDetails.seller.displayName}
                 </span>
               </div>
-              {productDetails.referrer?.displayName && productDetails?.referrer?.fid && (
-                <div className="flex items-center">
-                  <span
-                    onClick={() => {
-                      sdk.actions.viewProfile({
-                        fid: productDetails.referrer?.fid ?? 0,
-                      });
-                    }}
-                    className="text-gray-500"
-                  >
-                    Referral: 10% goes to {productDetails.referrer.displayName}
-                  </span>
-                </div>
-              )}
+              {productDetails.referrer?.displayName &&
+                productDetails?.referrer?.fid && (
+                  <div className="flex items-center">
+                    <span
+                      onClick={() => {
+                        sdk.actions.viewProfile({
+                          fid: productDetails.referrer?.fid ?? 0,
+                        });
+                      }}
+                      className="text-gray-500"
+                    >
+                      Referral: 10% goes to{" "}
+                      {productDetails.referrer.displayName}
+                    </span>
+                  </div>
+                )}
             </div>
 
             <div className="flex space-x-2">
@@ -311,6 +366,14 @@ export default function ProductUI({
                     : "Pending"}
                 </div>
               </div>
+            )}
+            {askToSwitchChain && (
+              <button
+                onClick={handleSwitchChain}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-3 rounded text-sm font-medium"
+              >
+                Please switch to Base Sepolia to purchase this product.
+              </button>
             )}
           </div>
         </div>
