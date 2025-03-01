@@ -267,7 +267,7 @@ export default function ProductUI({
       <div className="max-w-xl mx-auto py-2 px-2">
         <div className="max-w-full h-lvh bg-white rounded-lg shadow-sm overflow-hidden">
           {/* Product Image */}
-          <div className="relative h-64 bg-gray-100 overflow-hidden">
+          <div className="relative h-96 bg-gray-100 overflow-hidden">
             {productDetails.images && productDetails.images.length > 0 ? (
               <Image
                 src={productDetails.images[0]}
